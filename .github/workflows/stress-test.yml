@@ -97,13 +97,20 @@ jobs:
 
       - name: Run k6 stress test
         uses: grafana/run-k6-action@v1
-        env:
-          TARGET_URL: ${{ inputs.target_url }}
-          HTTP_METHOD: ${{ inputs.http_method }}
-          LOAD_MODE: ${{ inputs.load_mode }}
-          LOAD_VALUE: ${{ inputs.load_value }}
-          DURATION: ${{ inputs.duration }}
-          MAX_VUS: ${{ inputs.max_vus }}
         with:
           path: |
             tests/stress-test.js
+          flags: >-
+            --env TARGET_URL=${{ inputs.target_url }}
+            --env HTTP_METHOD=${{ inputs.http_method }}
+            --env LOAD_MODE=${{ inputs.load_mode }}
+            --env LOAD_VALUE=${{ inputs.load_value }}
+            --env DURATION=${{ inputs.duration }}
+            --env MAX_VUS=${{ inputs.max_vus }}
+          inspect-flags: >-
+            --env TARGET_URL=${{ inputs.target_url }}
+            --env HTTP_METHOD=${{ inputs.http_method }}
+            --env LOAD_MODE=${{ inputs.load_mode }}
+            --env LOAD_VALUE=${{ inputs.load_value }}
+            --env DURATION=${{ inputs.duration }}
+            --env MAX_VUS=${{ inputs.max_vus }}
