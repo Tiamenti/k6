@@ -4,18 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'URL сайта для тестирования (например, https://example.com)'
+        description: 'URL сайта для тестирования'
         required: true
-        type: string
-      virtual_users:
-        description: 'Количество виртуальных пользователей (VUs)'
-        required: false
-        default: '50'
-        type: string
-      duration:
-        description: 'Длительность теста (например, 30s, 1m, 5m)'
-        required: false
-        default: '1m'
         type: string
       http_method:
         description: 'HTTP метод'
@@ -25,6 +15,28 @@ on:
         options:
           - GET
           - POST
+      load_mode:
+        description: 'Тип нагрузки: по числу пользователей или по RPS'
+        required: true
+        type: choice
+        options:
+          - vus
+          - rps
+      load_value:
+        description: 'Значение: кол-во VUs (если vus) ИЛИ запросов/сек (если rps)'
+        required: true
+        default: '50'
+        type: string
+      duration:
+        description: 'Длительность основной фазы теста (например, 1m, 5m)'
+        required: false
+        default: '1m'
+        type: string
+      max_vus:
+        description: '[только для rps] Максимум VUs, которые k6 может создать для достижения RPS'
+        required: false
+        default: '200'
+        type: string
 
 jobs:
   stress-test:
@@ -42,13 +54,41 @@ jobs:
 
           const TARGET_URL = __ENV.TARGET_URL;
           const METHOD = __ENV.HTTP_METHOD || 'GET';
+          const LOAD_MODE = __ENV.LOAD_MODE;
+          const DURATION = __ENV.DURATION;
+
+          let scenario;
+
+          if (LOAD_MODE === 'rps') {
+            scenario = {
+              executor: 'constant-arrival-rate',
+              rate: Number(__ENV.LOAD_VALUE),
+              timeUnit: '1s',
+              duration: DURATION,
+              preAllocatedVUs: 20,
+              maxVUs: Number(__ENV.MAX_VUS),
+            };
+          } else {
+            scenario = {
+              executor: 'constant-vus',
+              vus: Number(__ENV.LOAD_VALUE),
+              duration: DURATION,
+            };
+          }
+
+          export const options = {
+            scenarios: { stress: scenario },
+          };
 
           export default function () {
             const res = http.request(METHOD, TARGET_URL);
             check(res, {
               'status is 2xx-3xx': (r) => r.status >= 200 && r.status < 400,
             });
-            sleep(1);
+
+            if (LOAD_MODE !== 'rps') {
+              sleep(1);
+            }
           }
           EOF
 
@@ -60,7 +100,10 @@ jobs:
         env:
           TARGET_URL: ${{ inputs.target_url }}
           HTTP_METHOD: ${{ inputs.http_method }}
+          LOAD_MODE: ${{ inputs.load_mode }}
+          LOAD_VALUE: ${{ inputs.load_value }}
+          DURATION: ${{ inputs.duration }}
+          MAX_VUS: ${{ inputs.max_vus }}
         with:
           path: |
             tests/stress-test.js
-          flags: --vus ${{ inputs.virtual_users }} --duration ${{ inputs.duration }}
